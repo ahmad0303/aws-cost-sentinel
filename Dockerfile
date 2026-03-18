@@ -13,14 +13,16 @@ RUN apt-get update && \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+COPY requirements-dev.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies (boto3 comes from requirements-dev.txt)
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir boto3
 
 # Copy application code
 COPY src/ ./src/
-COPY config.yaml .
-COPY sentinel-cli.py .
+COPY config.yaml.example ./config.yaml
+COPY sentinel_cli.py .
 
 # Create non-root user
 RUN useradd -m -u 1000 sentinel && \

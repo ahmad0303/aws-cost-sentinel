@@ -120,7 +120,7 @@ jobs:
         echo "Release package created: aws-cost-sentinel-${VERSION}.zip"
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: release-package
         path: aws-cost-sentinel-*.zip
