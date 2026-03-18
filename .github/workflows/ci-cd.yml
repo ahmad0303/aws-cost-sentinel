@@ -86,6 +86,7 @@ jobs:
       uses: docker/build-push-action@v4
       with:
         context: .
+        load: true
         push: false
         tags: aws-cost-sentinel:${{ github.sha }}
         cache-from: type=gha
@@ -109,7 +110,7 @@ jobs:
         VERSION=$(date +%Y%m%d-%H%M%S)
         zip -r aws-cost-sentinel-${VERSION}.zip \
           src/ \
-          config.yaml \
+          config.yaml.example \
           requirements.txt \
           requirements-dev.txt \
           lambda_handler.py \
@@ -149,7 +150,7 @@ jobs:
         mkdir -p build
         cp -r src build/
         cp lambda_handler.py build/
-        cp config.yaml build/
+        cp config.yaml.example build/config.yaml
         cd build
 
         pip install -r ../requirements.txt -t . \
