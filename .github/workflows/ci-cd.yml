@@ -6,26 +6,15 @@ on:
   pull_request:
     branches: [ main, dev ]
 
-  # Manual trigger for deploy — only runs when YOU click "Run workflow"
   workflow_dispatch:
     inputs:
-      deploy_target:
-        description: 'What to deploy'
-        required: true
-        type: choice
-        options:
-          - lambda
-          - docker
-          - release
-      confirm_deploy:
-        description: 'Type "yes" to confirm deployment'
+      deploy_lambda:
+        description: 'Deploy to Lambda? Type "yes" to confirm'
         required: true
         type: string
 
 jobs:
-  # ─────────────────────────────────────────────
-  # ALWAYS RUNS — on every push and PR
-  # ─────────────────────────────────────────────
+  # on every push and PR
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -81,17 +70,70 @@ jobs:
         flags: unittests
         name: codecov-umbrella
 
-  # ─────────────────────────────────────────────
+  # Build & Test Docker Image
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: false
+        tags: aws-cost-sentinel:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm aws-cost-sentinel:${{ github.sha }} python -c "from src.sentinel import CostSentinel; print('OK')"
+
+  # Create Release Assets
+  release:
+    name: Create Release Assets
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Create deployment package
+      run: |
+        VERSION=$(date +%Y%m%d-%H%M%S)
+        zip -r aws-cost-sentinel-${VERSION}.zip \
+          src/ \
+          config.yaml \
+          requirements.txt \
+          requirements-dev.txt \
+          lambda_handler.py \
+          sentinel_cli.py \
+          README.md \
+          LICENSE \
+          -x "*.git*" "*.pyc" "__pycache__/*"
+        echo "Release package created: aws-cost-sentinel-${VERSION}.zip"
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-package
+        path: aws-cost-sentinel-*.zip
+        retention-days: 30
+
   # MANUAL ONLY — Deploy to Lambda
-  # ─────────────────────────────────────────────
   deploy-lambda:
     name: Deploy to AWS Lambda
     runs-on: ubuntu-latest
     needs: test
     if: >
       github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.deploy_target == 'lambda' &&
-      github.event.inputs.confirm_deploy == 'yes'
+      github.event.inputs.deploy_lambda == 'yes'
     
     steps:
     - name: Checkout code
@@ -110,11 +152,9 @@ jobs:
         cp config.yaml build/
         cd build
 
-        # Install only runtime deps (no boto3, no dev tools)
         pip install -r ../requirements.txt -t . \
           --quiet --no-cache-dir
 
-        # Remove bloat that should never be in Lambda
         rm -rf \
           boto3* botocore* s3transfer* urllib3* \
           pytest* _pytest* moto* mypy* black* coverage* \
@@ -142,74 +182,4 @@ jobs:
         aws lambda update-function-code \
           --function-name $FUNCTION_NAME \
           --zip-file fileb://aws-cost-sentinel.zip
-        echo "✅ Deployed to Lambda: $FUNCTION_NAME"
-
-  # ─────────────────────────────────────────────
-  # MANUAL ONLY — Build & Push Docker Image
-  # ─────────────────────────────────────────────
-  build-docker:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: test
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.deploy_target == 'docker' &&
-      github.event.inputs.confirm_deploy == 'yes'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-    
-    - name: Build Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: false
-        tags: aws-cost-sentinel:${{ github.sha }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-    
-    - name: Test Docker image
-      run: |
-        docker run --rm aws-cost-sentinel:${{ github.sha }} python -c "from src.sentinel import CostSentinel; print('OK')"
-
-  # ─────────────────────────────────────────────
-  # MANUAL ONLY — Create Release Assets
-  # ─────────────────────────────────────────────
-  release:
-    name: Create Release Assets
-    runs-on: ubuntu-latest
-    needs: test
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.deploy_target == 'release' &&
-      github.event.inputs.confirm_deploy == 'yes'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Create deployment package
-      run: |
-        VERSION=$(date +%Y%m%d-%H%M%S)
-        zip -r aws-cost-sentinel-${VERSION}.zip \
-          src/ \
-          config.yaml \
-          requirements.txt \
-          requirements-dev.txt \
-          lambda_handler.py \
-          sentinel_cli.py \
-          README.md \
-          LICENSE \
-          -x "*.git*" "*.pyc" "__pycache__/*"
-        echo "📦 Release package created: aws-cost-sentinel-${VERSION}.zip"
-    
-    - name: Upload artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: release-package
-        path: aws-cost-sentinel-*.zip
-        retention-days: 30
+        echo "Deployed to Lambda: $FUNCTION_NAME"
