@@ -27,8 +27,8 @@ class AWSCostMonitor:
         """
         self.config = config or get_config()
 
-        region = self.config.get('aws.region', 'us-east-1')
-        self.ce_client = boto3.client('ce', region_name=region)
+        region = self.config.get("aws.region", "us-east-1")
+        self.ce_client = boto3.client("ce", region_name=region)
 
         logger.info(f"Initialized AWS Cost Monitor in region: {region}")
 
@@ -38,7 +38,7 @@ class AWSCostMonitor:
         end_date: datetime,
         granularity: str = "DAILY",
         metrics: List[str] = None,
-        group_by: List[Dict] = None
+        group_by: List[Dict] = None,
     ) -> Dict:
         """Get cost and usage data from AWS Cost Explorer.
 
@@ -53,19 +53,19 @@ class AWSCostMonitor:
             Cost and usage data from AWS
         """
         if metrics is None:
-            metrics = ['UnblendedCost']
+            metrics = ["UnblendedCost"]
 
         params = {
-            'TimePeriod': {
-                'Start': start_date.strftime('%Y-%m-%d'),
-                'End': end_date.strftime('%Y-%m-%d')
+            "TimePeriod": {
+                "Start": start_date.strftime("%Y-%m-%d"),
+                "End": end_date.strftime("%Y-%m-%d"),
             },
-            'Granularity': granularity,
-            'Metrics': metrics
+            "Granularity": granularity,
+            "Metrics": metrics,
         }
 
         if group_by:
-            params['GroupBy'] = group_by
+            params["GroupBy"] = group_by
 
         try:
             response = self.ce_client.get_cost_and_usage(**params)
@@ -89,18 +89,16 @@ class AWSCostMonitor:
         start_date = end_date - timedelta(days=days)
 
         response = self.get_cost_and_usage(
-            start_date=start_date,
-            end_date=end_date,
-            granularity='DAILY'
+            start_date=start_date, end_date=end_date, granularity="DAILY"
         )
 
         data = []
-        for result in response.get('ResultsByTime', []):
-            date = result['TimePeriod']['Start']
-            cost = float(result['Total']['UnblendedCost']['Amount'])
-            data.append({'date': date, 'cost': round(cost, 4)})
+        for result in response.get("ResultsByTime", []):
+            date = result["TimePeriod"]["Start"]
+            cost = float(result["Total"]["UnblendedCost"]["Amount"])
+            data.append({"date": date, "cost": round(cost, 4)})
 
-        data.sort(key=lambda r: r['date'])
+        data.sort(key=lambda r: r["date"])
 
         logger.info(f"Retrieved {len(data)} days of cost data")
         return data
@@ -121,26 +119,24 @@ class AWSCostMonitor:
         response = self.get_cost_and_usage(
             start_date=start_date,
             end_date=end_date,
-            granularity='DAILY',
-            group_by=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+            granularity="DAILY",
+            group_by=[{"Type": "DIMENSION", "Key": "SERVICE"}],
         )
 
         data = []
-        for result in response.get('ResultsByTime', []):
-            date = result['TimePeriod']['Start']
-            for group in result.get('Groups', []):
-                service = group['Keys'][0]
-                cost = float(group['Metrics']['UnblendedCost']['Amount'])
+        for result in response.get("ResultsByTime", []):
+            date = result["TimePeriod"]["Start"]
+            for group in result.get("Groups", []):
+                service = group["Keys"][0]
+                cost = float(group["Metrics"]["UnblendedCost"]["Amount"])
                 if cost > 0.001:  # skip negligible
-                    data.append({
-                        'date': date,
-                        'service': service,
-                        'cost': round(cost, 4)
-                    })
+                    data.append(
+                        {"date": date, "service": service, "cost": round(cost, 4)}
+                    )
 
-        data.sort(key=lambda r: (r['date'], r['service']))
+        data.sort(key=lambda r: (r["date"], r["service"]))
 
-        unique_services = len(set(r['service'] for r in data))
+        unique_services = len(set(r["service"] for r in data))
         logger.info(f"Retrieved service-level costs for {unique_services} services")
         return data
 
@@ -155,13 +151,13 @@ class AWSCostMonitor:
         end_date = now
 
         response = self.get_cost_and_usage(
-            start_date=start_date,
-            end_date=end_date,
-            granularity='MONTHLY'
+            start_date=start_date, end_date=end_date, granularity="MONTHLY"
         )
 
-        if response.get('ResultsByTime'):
-            cost = float(response['ResultsByTime'][0]['Total']['UnblendedCost']['Amount'])
+        if response.get("ResultsByTime"):
+            cost = float(
+                response["ResultsByTime"][0]["Total"]["UnblendedCost"]["Amount"]
+            )
             logger.info(f"Current month cost: ${cost:.2f}")
             return cost
 
@@ -182,26 +178,28 @@ class AWSCostMonitor:
         try:
             response = self.ce_client.get_cost_forecast(
                 TimePeriod={
-                    'Start': start_date.strftime('%Y-%m-%d'),
-                    'End': end_date.strftime('%Y-%m-%d')
+                    "Start": start_date.strftime("%Y-%m-%d"),
+                    "End": end_date.strftime("%Y-%m-%d"),
                 },
-                Metric='UNBLENDED_COST',
-                Granularity='MONTHLY'
+                Metric="UNBLENDED_COST",
+                Granularity="MONTHLY",
             )
 
-            forecast_cost = float(response['Total']['Amount'])
+            forecast_cost = float(response["Total"]["Amount"])
             logger.info(f"Forecast for next {days_ahead} days: ${forecast_cost:.2f}")
 
             return {
-                'forecast_cost': forecast_cost,
-                'start_date': start_date.strftime('%Y-%m-%d'),
-                'end_date': end_date.strftime('%Y-%m-%d')
+                "forecast_cost": forecast_cost,
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "end_date": end_date.strftime("%Y-%m-%d"),
             }
         except Exception as e:
             logger.warning(f"Could not get forecast: {str(e)}")
             return None
 
-    def check_budget_thresholds(self, current_cost: float, period: str = 'daily') -> Dict:
+    def check_budget_thresholds(
+        self, current_cost: float, period: str = "daily"
+    ) -> Dict:
         """Check if current cost exceeds configured thresholds.
 
         Args:
@@ -211,18 +209,18 @@ class AWSCostMonitor:
         Returns:
             Dictionary with threshold check results
         """
-        threshold_key = f'monitoring.budgets.{period}_max'
-        threshold = self.config.get(threshold_key, float('inf'))
+        threshold_key = f"monitoring.budgets.{period}_max"
+        threshold = self.config.get(threshold_key, float("inf"))
 
         exceeded = current_cost > threshold
         percent_of_budget = (current_cost / threshold * 100) if threshold > 0 else 0
 
         result = {
-            'exceeded': exceeded,
-            'current_cost': current_cost,
-            'threshold': threshold,
-            'percent_of_budget': round(percent_of_budget, 1),
-            'period': period
+            "exceeded": exceeded,
+            "current_cost": current_cost,
+            "threshold": threshold,
+            "percent_of_budget": round(percent_of_budget, 1),
+            "period": period,
         }
 
         if exceeded:
@@ -245,15 +243,17 @@ class AWSCostMonitor:
         if len(data) < 2:
             return []
 
-        daily_threshold = self.config.get('monitoring.alerts.daily_increase_percent', 50)
+        daily_threshold = self.config.get(
+            "monitoring.alerts.daily_increase_percent", 50
+        )
         spikes = []
 
-        sorted_data = sorted(data, key=lambda r: r['date'])
+        sorted_data = sorted(data, key=lambda r: r["date"])
 
         for i in range(1, len(sorted_data)):
-            prev_cost = sorted_data[i - 1]['cost']
-            curr_cost = sorted_data[i]['cost']
-            curr_date = sorted_data[i]['date']
+            prev_cost = sorted_data[i - 1]["cost"]
+            curr_cost = sorted_data[i]["cost"]
+            curr_date = sorted_data[i]["date"]
 
             if prev_cost > 0:
                 pct_change = ((curr_cost - prev_cost) / prev_cost) * 100
@@ -261,14 +261,16 @@ class AWSCostMonitor:
                 pct_change = 0
 
             if pct_change > daily_threshold:
-                spikes.append({
-                    'date': curr_date,
-                    'cost': curr_cost,
-                    'previous_cost': prev_cost,
-                    'percent_change': round(pct_change, 1),
-                    'threshold': daily_threshold,
-                    'type': 'daily_spike'
-                })
+                spikes.append(
+                    {
+                        "date": curr_date,
+                        "cost": curr_cost,
+                        "previous_cost": prev_cost,
+                        "percent_change": round(pct_change, 1),
+                        "threshold": daily_threshold,
+                        "type": "daily_spike",
+                    }
+                )
 
         return spikes
 
@@ -290,17 +292,13 @@ class AWSCostMonitor:
         # Sum costs per service
         totals: Dict[str, float] = defaultdict(float)
         for r in data:
-            totals[r['service']] += r['cost']
+            totals[r["service"]] += r["cost"]
 
         # Sort descending and take top N
         sorted_services = sorted(totals.items(), key=lambda x: x[1], reverse=True)
 
         return [
-            {
-                'service': service,
-                'total_cost': round(cost, 2),
-                'period_days': days
-            }
+            {"service": service, "total_cost": round(cost, 2), "period_days": days}
             for service, cost in sorted_services[:top_n]
         ]
 
@@ -314,13 +312,13 @@ class AWSCostMonitor:
         daily_data = self.get_daily_costs(days=30)
 
         # Calculate metrics
-        today_cost = daily_data[-1]['cost'] if daily_data else 0
-        yesterday_cost = daily_data[-2]['cost'] if len(daily_data) > 1 else 0
+        today_cost = daily_data[-1]["cost"] if daily_data else 0
+        yesterday_cost = daily_data[-2]["cost"] if len(daily_data) > 1 else 0
 
         last_7 = daily_data[-7:] if len(daily_data) >= 7 else daily_data
-        week_cost = sum(r['cost'] for r in last_7)
+        week_cost = sum(r["cost"] for r in last_7)
 
-        all_costs = [r['cost'] for r in daily_data]
+        all_costs = [r["cost"] for r in daily_data]
         month_cost_sum = sum(all_costs)
         avg_daily = month_cost_sum / len(all_costs) if all_costs else 0
 
@@ -331,27 +329,29 @@ class AWSCostMonitor:
         top_services = self.get_top_services(days=7)
 
         # Check thresholds
-        daily_threshold = self.check_budget_thresholds(today_cost, 'daily')
-        weekly_threshold = self.check_budget_thresholds(week_cost, 'weekly')
-        monthly_threshold = self.check_budget_thresholds(current_month_actual, 'monthly')
+        daily_threshold = self.check_budget_thresholds(today_cost, "daily")
+        weekly_threshold = self.check_budget_thresholds(week_cost, "weekly")
+        monthly_threshold = self.check_budget_thresholds(
+            current_month_actual, "monthly"
+        )
 
         # Detect spikes
         spikes = self.detect_cost_spikes(daily_data)
 
         summary = {
-            'today_cost': today_cost,
-            'yesterday_cost': yesterday_cost,
-            'week_cost': round(week_cost, 2),
-            'month_cost': current_month_actual,
-            'avg_daily_cost': round(avg_daily, 2),
-            'top_services': top_services,
-            'thresholds': {
-                'daily': daily_threshold,
-                'weekly': weekly_threshold,
-                'monthly': monthly_threshold
+            "today_cost": today_cost,
+            "yesterday_cost": yesterday_cost,
+            "week_cost": round(week_cost, 2),
+            "month_cost": current_month_actual,
+            "avg_daily_cost": round(avg_daily, 2),
+            "top_services": top_services,
+            "thresholds": {
+                "daily": daily_threshold,
+                "weekly": weekly_threshold,
+                "monthly": monthly_threshold,
             },
-            'spikes': spikes,
-            'timestamp': datetime.now().isoformat()
+            "spikes": spikes,
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info("Generated cost summary")

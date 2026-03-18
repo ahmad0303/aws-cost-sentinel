@@ -26,20 +26,20 @@ logger = get_logger(__name__)
 
 class CostAnomalyDetector:
     """Detect cost anomalies using statistical methods.
-    
+
     Same interface as the sklearn version — all public methods
     have identical signatures and return formats.
     """
 
     SENSITIVITY_PARAMS = {
-        "low":    {"z_threshold": 3.0, "deviation_floor": 30},
+        "low": {"z_threshold": 3.0, "deviation_floor": 30},
         "medium": {"z_threshold": 2.0, "deviation_floor": 20},
-        "high":   {"z_threshold": 1.5, "deviation_floor": 10},
+        "high": {"z_threshold": 1.5, "deviation_floor": 10},
     }
 
     def __init__(self, config=None):
         """Initialize anomaly detector.
-        
+
         Args:
             config: Configuration object
         """
@@ -60,7 +60,9 @@ class CostAnomalyDetector:
         self._weekday_medians: dict[int, float] = {}
         self._history: list[dict] = []
 
-        logger.info(f"Initialized anomaly detector with sensitivity: {self.sensitivity}")
+        logger.info(
+            f"Initialized anomaly detector with sensitivity: {self.sensitivity}"
+        )
 
     # ──────────────────────────────────────────────
     # Core math helpers (pure Python)
@@ -114,7 +116,7 @@ class CostAnomalyDetector:
 
     def fit(self, df: list[dict] | Any) -> None:
         """Train on historical cost data.
-        
+
         Args:
             df: List of dicts with 'date' and 'cost' keys,
                 OR a pandas DataFrame (for backward compat).
@@ -139,6 +141,7 @@ class CostAnomalyDetector:
 
         # Per-weekday baselines (captures weekly seasonality)
         from collections import defaultdict
+
         weekday_costs: dict[int, list[float]] = defaultdict(list)
         for r in records:
             dt = self._parse_date(r["date"])
@@ -155,11 +158,11 @@ class CostAnomalyDetector:
 
     def detect_anomalies(self, df: list[dict] | Any) -> list[dict]:
         """Detect anomalies in cost data.
-        
+
         Args:
             df: List of dicts with 'date' and 'cost' keys,
                 OR a pandas DataFrame.
-                
+
         Returns:
             List of dicts, each with original fields plus
             'anomaly' (bool) and 'anomaly_score' (float).
@@ -198,7 +201,9 @@ class CostAnomalyDetector:
             rolling_z = (cost - rolling_means[i]) / roll_std
 
             # Combined score: weighted average of all three signals
-            combined_score = abs(global_z) * 0.4 + abs(wd_z) * 0.3 + abs(rolling_z) * 0.3
+            combined_score = (
+                abs(global_z) * 0.4 + abs(wd_z) * 0.3 + abs(rolling_z) * 0.3
+            )
 
             # Anomaly if score exceeds threshold
             is_anomaly = combined_score > self.params["z_threshold"]
@@ -212,16 +217,18 @@ class CostAnomalyDetector:
             results.append(record)
 
         num_anomalies = sum(1 for r in results if r["anomaly"])
-        logger.info(f"Detected {num_anomalies} anomalies out of {len(results)} data points")
+        logger.info(
+            f"Detected {num_anomalies} anomalies out of {len(results)} data points"
+        )
 
         return results
 
     def get_anomaly_insights(self, results: list[dict] | Any) -> List[Dict]:
         """Get detailed insights about detected anomalies.
-        
+
         Args:
             results: Output from detect_anomalies()
-            
+
         Returns:
             List of anomaly insight dicts.
         """
@@ -242,13 +249,13 @@ class CostAnomalyDetector:
             # Previous week average for context
             date_dt = self._parse_date(date)
             week_before = [
-                r["cost"]
-                for r in all_records
-                if self._parse_date(r["date"]) < date_dt
+                r["cost"] for r in all_records if self._parse_date(r["date"]) < date_dt
             ][-7:]
 
             avg_before = sum(week_before) / len(week_before) if week_before else cost
-            deviation = ((cost - avg_before) / avg_before * 100) if avg_before > 0 else 0
+            deviation = (
+                ((cost - avg_before) / avg_before * 100) if avg_before > 0 else 0
+            )
 
             insight = {
                 "date": date if isinstance(date, str) else date.strftime("%Y-%m-%d"),
@@ -265,13 +272,15 @@ class CostAnomalyDetector:
 
         return insights
 
-    def analyze_service_anomalies(self, service_data: list[dict] | Any) -> Dict[str, List[Dict]]:
+    def analyze_service_anomalies(
+        self, service_data: list[dict] | Any
+    ) -> Dict[str, List[Dict]]:
         """Detect anomalies per service.
-        
+
         Args:
             service_data: List of dicts with 'service', 'date', 'cost' keys,
                           OR a pandas DataFrame.
-                          
+
         Returns:
             Dict mapping service names to their anomaly insights.
         """
@@ -279,6 +288,7 @@ class CostAnomalyDetector:
 
         # Group by service
         from collections import defaultdict
+
         by_service: dict[str, list[dict]] = defaultdict(list)
         for r in records:
             by_service[r["service"]].append(r)
@@ -332,7 +342,7 @@ class CostAnomalyDetector:
     @staticmethod
     def _to_records(df) -> list[dict]:
         """Convert pandas DataFrame or list of dicts to list of dicts.
-        
+
         This lets the code work with OR without pandas installed.
         """
         if isinstance(df, list):
