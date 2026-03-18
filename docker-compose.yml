@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  aws-cost-sentinel:
+    build: .
+    image: aws-cost-sentinel:latest
+    container_name: aws-cost-sentinel
+    environment:
+      # AWS Credentials (use AWS_PROFILE for local development)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      
+      # Notification Webhooks
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - SNS_TOPIC_ARN=${SNS_TOPIC_ARN}
+      
+      # Application Settings
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    volumes:
+      # Mount config file
+      - ./config.yaml:/app/config.yaml:ro
+      
+      # Optional: Mount AWS credentials
+      - ~/.aws:/home/sentinel/.aws:ro
+    
+    # Run monitoring cycle
+    command: python -m src.sentinel
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Cron scheduler for daily reports
+  aws-cost-sentinel-cron:
+    build: .
+    image: aws-cost-sentinel:latest
+    container_name: aws-cost-sentinel-cron
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ~/.aws:/home/sentinel/.aws:ro
+    
+    # Run daily at 9 AM UTC
+    entrypoint: /bin/sh -c
+    command: |
+      "while true; do
+        # Calculate seconds until 9 AM UTC
+        current_hour=$$(date -u +%H)
+        current_min=$$(date -u +%M)
+        if [ $$current_hour -eq 9 ] && [ $$current_min -eq 0 ]; then
+          python sentinel-cli.py report
+        fi
+        sleep 60
+      done"
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  default:
+    name: aws-cost-sentinel-network

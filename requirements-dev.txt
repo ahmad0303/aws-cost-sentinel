@@ -1,0 +1,11 @@
+boto3==1.42.70
+
+# Testing
+pytest==8.0.0
+pytest-cov==4.1.0
+moto[ce,s3,ec2,rds,sts]==5.0.0
+
+# Linting / Formatting
+black==24.1.1
+flake8==7.0.0
+mypy==1.8.0

@@ -1,0 +1,14 @@
+# AWS Cost Sentinel - Runtime Dependencies
+
+# Notifications
+slack-sdk==3.26.2
+discord-webhook==1.3.1
+pymsteams==0.2.3
+requests==2.31.0
+
+# Configuration
+pyyaml==6.0.2
+python-dotenv==1.0.1
+
+# Date handling
+python-dateutil==2.8.2

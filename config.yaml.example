@@ -1,0 +1,115 @@
+# AWS Cost Sentinel Configuration Example
+# Copy this file to config.yaml and customize for your needs
+
+aws:
+  # AWS Region
+  region: us-east-1
+  
+  # Optional: AWS Profile (for local development)
+  # profile: default
+
+monitoring:
+  # Historical data lookback period
+  lookback_days: 30
+  
+  # Services to monitor (empty = all services)
+  # Uncomment and customize if you want to monitor specific services
+  # services:
+  #   - EC2
+  #   - RDS
+  #   - S3
+  #   - Lambda
+  #   - CloudFront
+  
+  # Budget thresholds (in USD)
+  budgets:
+    daily_max: 100.0        # Daily spending limit
+    weekly_max: 500.0       # Weekly spending limit
+    monthly_max: 2000.0     # Monthly spending limit
+    
+  # Alert thresholds (percentage increase)
+  alerts:
+    daily_increase_percent: 50.0      # Alert on 50%+ daily increase
+    weekly_increase_percent: 30.0     # Alert on 30%+ weekly increase
+    monthly_increase_percent: 20.0    # Alert on 20%+ monthly increase
+
+anomaly_detection:
+  # Enable ML-based anomaly detection
+  enabled: true
+  
+  # Sensitivity level: low, medium, high
+  # low = fewer alerts (only major anomalies)
+  # medium = balanced detection
+  # high = more alerts (catches smaller anomalies)
+  sensitivity: medium
+  
+  # Minimum days of historical data required
+  min_history_days: 7
+  
+  # Expected percentage of anomalies in data (0.05 - 0.15)
+  contamination: 0.1
+
+notifications:
+  # Slack notifications
+  slack:
+    enabled: false
+    webhook_url: ${SLACK_WEBHOOK_URL}
+    channel: "#aws-costs"
+    mention_on_critical: "@channel"  # Mention for critical alerts
+    
+  # Discord notifications
+  discord:
+    enabled: false
+    webhook_url: ${DISCORD_WEBHOOK_URL}
+    mention_on_critical: "@everyone"  # Mention for critical alerts
+    
+  # Email notifications via AWS SES
+  email:
+    enabled: false
+    sender: alerts@yourcompany.com
+    recipients:
+      - devops@yourcompany.com
+      - finance@yourcompany.com
+    
+  # SNS notifications (optional)
+  sns:
+    enabled: false
+    topic_arn: ${SNS_TOPIC_ARN}
+
+reports:
+  # Daily summary report
+  daily_report:
+    enabled: true
+    time: "09:00"  # UTC time (9 AM UTC)
+    
+  # Weekly summary report
+  weekly_report:
+    enabled: true
+    day: "Monday"
+    time: "09:00"  # UTC time
+    
+  # Monthly summary report
+  monthly_report:
+    enabled: true
+    day: 1  # Day of month (1-28)
+    time: "09:00"  # UTC time
+
+optimization:
+  # Cost optimization suggestions
+  enabled: true
+  
+  # Types of checks to perform
+  checks:
+    - unused_resources
+    - rightsizing_opportunities
+    - reserved_instance_recommendations
+    - savings_plan_recommendations
+    - free_tier_usage
+
+# Logging configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
